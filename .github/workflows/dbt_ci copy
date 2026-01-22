@@ -1,0 +1,25 @@
+name: dbt CI
+
+on:
+  push:
+    branches: ["cr001"]
+ 
+jobs:
+  dbt-ci-setup:
+    runs-on: ubuntu-latest
+    environment: ci
+
+    defaults:
+      run:
+        working-directory: my_project    
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+ 
+      - name: Install dependencies
+        run: |
+          echo "Installing dependencies..."  
+
+      

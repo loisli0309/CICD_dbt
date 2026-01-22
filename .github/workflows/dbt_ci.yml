@@ -1,25 +1,65 @@
 name: dbt CI
 
 on:
-  push:
-    branches: ["cr001"]
- 
+  
+  pull_request:
+    branches: ["main"]             # PR 到 main 时跑
+
 jobs:
-  dbt-ci-setup:
+  dbt-ci:
     runs-on: ubuntu-latest
-    environment: ci
+    environment: ci  # must match environment with secrets
 
     defaults:
       run:
-        working-directory: my_project    
+        working-directory: my_project   # ⭐ dbt_project.yml 在这里
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
- 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Install dependencies
         run: |
-          echo "Installing dependencies..."  
+          python -m pip install --upgrade pip
+          pip install -r ../requirements.txt
 
-      
+      - name: Create profiles.yml (ci)
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          my_project:
+            target: ci
+            outputs:
+              ci:
+                type: snowflake
+                account: "${SNOWFLAKE_ACCOUNT}"
+                user: "${SNOWFLAKE_USER}"
+                password: "${SNOWFLAKE_PASSWORD}"
+                role: "${SNOWFLAKE_ROLE}"
+                database: "${SNOWFLAKE_DATABASE}"
+                warehouse: "${SNOWFLAKE_WAREHOUSE}"
+                schema: "${SNOWFLAKE_SCHEMA}"
+                threads: 4
+          EOF
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+
+      - name: dbt debug
+        run: dbt debug --profiles-dir ~/.dbt --target ci
+
+      - name: dbt deps
+        run: dbt deps --profiles-dir ~/.dbt
+
+      - name: dbt build
+        run: dbt build --profiles-dir ~/.dbt --target ci --fail-fast
