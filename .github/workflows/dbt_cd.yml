@@ -1,0 +1,13 @@
+my_project:
+  outputs:
+    dev:
+      account: BEGLJCV-MD72619
+      database: SNOWFLAKE_LEARNING_DB
+      password:  T-X53hVUZMKPFCs
+      role: ACCOUNTADMIN
+      schema: ANALYTICS
+      threads: 1
+      type: snowflake
+      user: dbtsnowflake
+      warehouse: 'SNOWFLAKE_LEARNING_WH'
+  target: dev
