@@ -1,13 +1,71 @@
-my_project:
-  outputs:
-    dev:
-      account: BEGLJCV-MD72619
-      database: SNOWFLAKE_LEARNING_DB
-      password:  T-X53hVUZMKPFCs
-      role: ACCOUNTADMIN
-      schema: ANALYTICS
-      threads: 1
-      type: snowflake
-      user: dbtsnowflake
-      warehouse: 'SNOWFLAKE_LEARNING_WH'
-  target: dev
+name: dbt CD
+
+on:
+  push:
+    branches: ["main"]   # merge 到 main 后触发（= Prod）
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: cd     # 👉 建议用 prod（而不是 ci）
+
+    # ✅ 关键：job-level env，所有 steps 都能读到
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+      SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}   # Prod schema
+
+    defaults:
+      run:
+        working-directory: my_project   # ⭐ dbt_project.yml 在这里
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ../requirements.txt
+
+      - name: Create profiles.yml (prod)
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          my_project:
+            target: prod
+            outputs:
+              prod:
+                type: snowflake
+                account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+                user: "{{ env_var('SNOWFLAKE_USER') }}"
+                password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+                role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+                warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
+                database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+                schema: "{{ env_var('SNOWFLAKE_SCHEMA') }}"
+                threads: 8
+          EOF
+
+      # ✅ 可选：确认 profiles（不泄露密码）
+      - name: Show profiles.yml (safe)
+        run: |
+          sed -e "s/password: .*/password: ***MASKED***/" ~/.dbt/profiles.yml
+
+      - name: dbt deps
+        run: dbt deps --profiles-dir ~/.dbt
+
+      - name: dbt debug
+        run: dbt debug --profiles-dir ~/.dbt --target prod
+
+      - name: dbt build (prod)
+        run: dbt build --profiles-dir ~/.dbt --target prod --fail-fast
