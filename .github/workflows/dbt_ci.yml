@@ -1,18 +1,17 @@
 name: dbt CI
 
 on:
-  
   pull_request:
-    branches: ["main"]             # PR 到 main 时跑
+    branches: ["main"]
 
 jobs:
   dbt-ci:
     runs-on: ubuntu-latest
-    environment: ci  # must match environment with secrets
+    environment: ci
 
     defaults:
       run:
-        working-directory: my_project   # ⭐ dbt_project.yml 在这里
+        working-directory: my_project
 
     steps:
       - name: Checkout repo
@@ -37,13 +36,13 @@ jobs:
             outputs:
               ci:
                 type: snowflake
-                account: "${SNOWFLAKE_ACCOUNT}"
-                user: "${SNOWFLAKE_USER}"
-                password: "${SNOWFLAKE_PASSWORD}"
-                role: "${SNOWFLAKE_ROLE}"
-                database: "${SNOWFLAKE_DATABASE}"
-                warehouse: "${SNOWFLAKE_WAREHOUSE}"
-                schema: "${SNOWFLAKE_SCHEMA}"
+                account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+                user: "{{ env_var('SNOWFLAKE_USER') }}"
+                password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+                role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+                database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+                warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
+                schema: "{{ env_var('SNOWFLAKE_SCHEMA') }}"
                 threads: 4
           EOF
         env:
@@ -54,6 +53,10 @@ jobs:
           SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
           SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
           SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+
+      - name: Show profiles.yml (safe)
+        run: |
+          sed -e "s/password: .*/password: ***MASKED***/" ~/.dbt/profiles.yml
 
       - name: dbt debug
         run: dbt debug --profiles-dir ~/.dbt --target ci
